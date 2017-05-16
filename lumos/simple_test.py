@@ -1,5 +1,5 @@
-from packet import E131Packet
-from source import DMXSource
+from lumos.packet import E131Packet
+from lumos.source import DMXSource
 
 data = [255] * 500
 
