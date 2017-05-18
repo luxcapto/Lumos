@@ -30,7 +30,7 @@ sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
 sock.settimeout(0.2)
 
 # sent = sock.sendto(p.packet, (UDP_IP, UDP_PORT))
-src = DMXSource()
+src = DMXSource(UDP_IP, UDP_PORT,1)
 import time
 for i in range(500):
     src.send_data(data)
