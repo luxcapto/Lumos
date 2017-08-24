@@ -53,13 +53,14 @@ class DMPLayer(LayerBase):
         return 10 + 1 + len(self.data)
 
 class FramingLayer(LayerBase):
-    def __init__(self, dmp_packet=None, universe=1, name=None, priority=100, sequence=0):
+    def __init__(self, dmp_packet=None, universe=1, name=None, priority=100, sequence=0, sync_universe=0):
         self.universe = universe
         name = name or 'lumos'
         self.name = name
         self.priority = priority
         self.sequence = sequence
         self.dmp_packet = dmp_packet
+        self.sync_universe = sync_universe
 
     def packet_data(self):
         packet = bytearray()
@@ -70,14 +71,41 @@ class FramingLayer(LayerBase):
         packet.append(self.priority)
         # reserved by spec
         packet.extend(b'\x00\x00')
+        packet.extend(struct.pack('!H', self.sync_universe))
         packet.append(self.sequence)
         # options
-        packet.append(0)
+        #if self.sync_universe:
+        packet.append(b'\x20')
+        #else:
+        #  packet.append(0)
         # universe
-        packet.extend(struct.pack('!h', self.universe))
+        packet.extend(struct.pack('!H', self.universe))
         packet.extend(self.dmp_packet)
         return packet
 
+class SyncFramingLayer(LayerBase):
+
+    def __init__(self, name=None, priority=100, sequence=0, sync_universe=0):
+        name = name or 'lumos'
+        self.name = name
+        self.priority = priority
+
+        self.sequence = sequence
+        self.sync_universe = sync_universe
+
+    def packet_data(self):
+        packet = bytearray()
+        # flags & length
+        packet.extend(length_as_low12(11))
+        # vector
+        packet.extend(b'\x00\x00\x00\x01')
+        # reserved by spec
+        packet.append(self.sequence)
+        #sync universe
+        packet.extend(struct.pack('!H', self.sync_universe))
+        # reserved by spec 
+        packet.extend(b'\x00\x10\x00\x00')
+        return packet
 
 class RootLayer(LayerBase):
 
@@ -89,6 +117,7 @@ class RootLayer(LayerBase):
 
     def packet_data(self):
         packet = bytearray()
+        
         packet.extend(b'\x00\x10\x00\x00')
         packet.extend(b'ASC-E1.17\x00\x00\x00')
         # pdu size starts after byte 16 - there are 38 bytes of data in root layer
@@ -102,9 +131,13 @@ class RootLayer(LayerBase):
 
 
 class E131Packet(object):
-    def __init__(self, cid=None, name=None, universe=None, data=[], sequence=0):
+    def __init__(self, cid=None, name=None, universe=None, data=[], sequence=0, sync_universe=0):
         self.dmp_packet = DMPLayer(data=data).packet_data()
         self.framing_packet = FramingLayer(name=name, universe=universe,
-                dmp_packet=self.dmp_packet, sequence=sequence).packet_data()
+                dmp_packet=self.dmp_packet, sequence=sequence, sync_universe=sync_universe).packet_data()
         self.packet_data = RootLayer(cid=cid, framing_packet=self.framing_packet).packet_data()
 
+class E131SyncPacket(object):
+    def __init__(self, cid=None,  sequence=0, sync_universe=None):
+        self.framing_packet = SyncFramingLayer(sequence=sequence, sync_universe=sync_universe).packet_data()
+        self.packet_data = RootLayer(cid=cid, framing_packet=self.framing_packet).packet_data()

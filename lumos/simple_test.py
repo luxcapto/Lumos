@@ -22,7 +22,6 @@ sock = socket.socket(socket.AF_INET, # Internet
 # local network segment.
 ttl = struct.pack('b', 1)
 
-
 sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
 
 # Set a timeout so the socket does not block indefinitely when trying
