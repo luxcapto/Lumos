@@ -70,41 +70,39 @@ class FramingLayer(LayerBase):
         packet.extend(struct.pack('!64s', self.name.encode('ascii')))
         packet.append(self.priority)
         # reserved by spec
-        packet.extend(b'\x00\x00')
+        #packet.extend(b'\x00\x00')
         packet.extend(struct.pack('!H', self.sync_universe))
         packet.append(self.sequence)
         # options
-        #if self.sync_universe:
-        packet.append(b'\x20')
-        #else:
-        #  packet.append(0)
+        if self.sync_universe:
+          packet.extend(b'\x00')
+        else:
+           packet.extend(b'\x20')
         # universe
+        #packet.append(0)
         packet.extend(struct.pack('!H', self.universe))
         packet.extend(self.dmp_packet)
         return packet
 
 class SyncFramingLayer(LayerBase):
 
-    def __init__(self, name=None, priority=100, sequence=0, sync_universe=0):
-        name = name or 'lumos'
-        self.name = name
-        self.priority = priority
-
+    def __init__(self, sequence=0, sync_universe=0):
         self.sequence = sequence
         self.sync_universe = sync_universe
-
     def packet_data(self):
         packet = bytearray()
         # flags & length
-        packet.extend(length_as_low12(11))
+        # packet.extend(length_as_low12(10))
+        #packet.extend(length_as_low12(122))
+        packet.extend(b'\x70\x0b')
         # vector
         packet.extend(b'\x00\x00\x00\x01')
-        # reserved by spec
+        # sequence number 
         packet.append(self.sequence)
-        #sync universe
+        # sync address 
         packet.extend(struct.pack('!H', self.sync_universe))
         # reserved by spec 
-        packet.extend(b'\x00\x10\x00\x00')
+        packet.extend(b'\x00\x00')
         return packet
 
 class RootLayer(LayerBase):
@@ -117,7 +115,6 @@ class RootLayer(LayerBase):
 
     def packet_data(self):
         packet = bytearray()
-        
         packet.extend(b'\x00\x10\x00\x00')
         packet.extend(b'ASC-E1.17\x00\x00\x00')
         # pdu size starts after byte 16 - there are 38 bytes of data in root layer
@@ -129,6 +126,26 @@ class RootLayer(LayerBase):
         packet.extend(self.framing_packet)
         return packet
 
+class SyncRootLayer(LayerBase):
+
+    def __init__(self, cid=None, framing_packet=None):
+        self.cid = cid or default_cid
+        if len(self.cid) > 16:
+            raise ValueError("CID too long")
+        self.framing_packet = framing_packet
+
+    def packet_data(self):
+        packet = bytearray()
+        packet.extend(b'\x00\x10\x00\x00')
+        packet.extend(b'ASC-E1.17\x00\x00\x00')
+        # pdu size starts after byte 16 - there are 38 bytes of data in root layer
+        # so size is 38 - 16 + framing layer
+        packet.extend(length_as_low12(38 - 16 + len(self.framing_packet)))
+        # vector
+        packet.extend(b'\x00\x00\x00\x08')
+        packet.extend(self.cid)
+        packet.extend(self.framing_packet)
+        return packet
 
 class E131Packet(object):
     def __init__(self, cid=None, name=None, universe=None, data=[], sequence=0, sync_universe=0):
@@ -138,6 +155,6 @@ class E131Packet(object):
         self.packet_data = RootLayer(cid=cid, framing_packet=self.framing_packet).packet_data()
 
 class E131SyncPacket(object):
-    def __init__(self, cid=None,  sequence=0, sync_universe=None):
+    def __init__(self, cid=None, sequence=0, sync_universe=None):
         self.framing_packet = SyncFramingLayer(sequence=sequence, sync_universe=sync_universe).packet_data()
-        self.packet_data = RootLayer(cid=cid, framing_packet=self.framing_packet).packet_data()
+        self.packet_data = SyncRootLayer(cid=cid, framing_packet=self.framing_packet).packet_data()
