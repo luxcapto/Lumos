@@ -17,17 +17,14 @@ def ip_from_universe(universe):
     low_byte = universe & 0xff
     return "239.255.{}.{}".format(high_byte, low_byte)
 
-
 class DMXSource(object):
     """
     bind_ip is the IP address assigned to a specific HW interface
     """
 
-    def __init__(self, ip_addr=None, port=5568, universe=1, network_segment=1, bind_ip=None, sync_universe=0):
+    def __init__(self, ip_addr=None, port=5568, network_segment=1, bind_ip=None):
         # added in ip_addr and port options so you can use same IP and port for different universes
-        self.universe = universe
         self.port = port
-        self.sync_universe = sync_universe
         if not ip_addr: 
            self.ip = ip_from_universe(universe)
         else:
@@ -43,14 +40,14 @@ class DMXSource(object):
         ttl = struct.pack('b', network_segment)
         self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
 
-    def send_data(self, data):
-        packet = E131Packet(universe=self.universe, data=data, sequence=self.sequence, sync_universe=self.sync_universe)
+    def send_data(self, data, universe=0, sync_universe=0):
+        packet = E131Packet(universe=universe, data=data, sequence=self.sequence, sync_universe=sync_universe)
         if self.sequence == 255:
             self.sequence = 0
         else:
             self.sequence += 1
         self.sock.sendto(packet.packet_data, (self.ip, self.port))
     
-    def send_sync(self):
-        packet = E131SyncPacket(sequence=self.sequence, sync_universe=self.sync_universe)
+    def send_sync(self, sync_universe=0):
+        packet = E131SyncPacket(sequence=self.sequence, sync_universe=sync_universe)
         self.sock.sendto(packet.packet_data, (self.ip, self.port))
